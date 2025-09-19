@@ -15,8 +15,22 @@ from datetime import datetime
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents.agent_types import AgentType
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
-
-
+import os          
+from pathlib import Path 
+def setup_secrets():
+    # Check if we are in a deployed environment by looking for the GOOGLE_API_KEY env var
+    if "GOOGLE_API_KEY" in os.environ:
+        # Create the .streamlit directory if it doesn't exist
+        streamlit_dir = Path(".streamlit")
+        streamlit_dir.mkdir(exist_ok=True)
+        
+        # Create the secrets.toml file
+        secrets_file_path = streamlit_dir / "secrets.toml"
+        
+        # Write the secret from the environment variable into the file
+        with open(secrets_file_path, "w") as f:
+            f.write(f'GOOGLE_API_KEY = "{os.environ["GOOGLE_API_KEY"]}"\n')
+setup_secrets()
 # Page configuration
 st.set_page_config(
     page_title="DataViz Pro",

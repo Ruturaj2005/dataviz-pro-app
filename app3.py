@@ -254,7 +254,6 @@ if uploaded_file is not None:
     
     # ================== EXPORT REPORT ==================
     elif choice == "📤 Export Report":
-        # (This section is unchanged and complete)
         st.markdown("## 📄 Export Your Analysis")
         st.subheader("🎯 Customize Report")
         
@@ -267,20 +266,48 @@ if uploaded_file is not None:
             include_distributions = st.checkbox("📈 Distributions", value=True)
 
         st.markdown("---")
+
         def create_pdf_report(df, include_summary, include_correlations, include_missing, include_distributions):
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=inch*0.8, leftMargin=inch*0.8, topMargin=inch*0.8, bottomMargin=inch*0.8)
             styles = getSampleStyleSheet()
             story = []
+            
             story.append(Paragraph("📊 DataViz Pro - Analysis Report", styles["Title"]))
             story.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"]))
             story.append(Spacer(1, 20))
+            
             story.append(Paragraph("📋 Dataset Overview", styles["Heading2"]))
             overview_data = [['Metric', 'Value'], ['Total Rows', f'{len(df):,}'], ['Total Columns', str(len(df.columns))]]
             overview_table = Table(overview_data, colWidths=[2*inch, 4*inch])
-            overview_table.setStyle([('BACKGROUND', (0, 0), (-1, 0), '#667eea'), ('TEXTCOLOR', (0, 0), (-1, 0), 'white'), ('ALIGN', (0, 0), (-1, -1), 'LEFT'), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, 0), 12), ('BOTTOMPADDING', (0, 0), (-1, 0), 12), ('BACKGROUND', (0, 1), (-1, -1), '#f8f9fa'), ('GRID', (0, 0), (-1, -1), 1, '#cccccc')])
+            overview_table.setStyle([('BACKGROUND', (0, 0), (-1, 0), '#4F46E5'), ('TEXTCOLOR', (0, 0), (-1, 0), 'white'), ('ALIGN', (0, 0), (-1, -1), 'LEFT'), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('BOTTOMPADDING', (0, 0), (-1, 0), 12), ('BACKGROUND', (0, 1), (-1, -1), '#F3F4F6'), ('GRID', (0, 0), (-1, -1), 1, '#D1D5DB')])
             story.append(overview_table)
             story.append(Spacer(1, 20))
+            
+            if include_summary:
+                story.append(Paragraph("📊 Summary Statistics", styles["Heading2"]))
+                summary = df.describe().round(2)
+                summary_data = [[''] + summary.columns.tolist()] + [[idx] + list(row) for idx, row in summary.iterrows()]
+                summary_table = Table(summary_data)
+                summary_table.setStyle([('BACKGROUND', (0, 0), (-1, 0), '#4F46E5'), ('TEXTCOLOR', (0, 0), (-1, 0), 'white'), ('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('BACKGROUND', (0, 1), (-1, -1), '#F3F4F6'), ('GRID', (0, 0), (-1, -1), 1, '#D1D5DB')])
+                story.append(summary_table)
+                story.append(Spacer(1, 20))
+
+            if include_missing:
+                story.append(Paragraph("❌ Missing Values", styles["Heading2"]))
+                missing = df.isnull().sum()
+                missing = missing[missing > 0]
+                if not missing.empty:
+                    missing_data = [['Column', 'Missing Count', 'Percentage']]
+                    for col, count in missing.items():
+                        missing_data.append([col, str(count), f"{(count/len(df)*100):.2f}%"])
+                    missing_table = Table(missing_data)
+                    missing_table.setStyle([('BACKGROUND', (0, 0), (-1, 0), '#4F46E5'), ('TEXTCOLOR', (0, 0), (-1, 0), 'white'), ('ALIGN', (0, 0), (-1, -1), 'LEFT'), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('BACKGROUND', (0, 1), (-1, -1), '#F3F4F6'), ('GRID', (0, 0), (-1, -1), 1, '#D1D5DB')])
+                    story.append(missing_table)
+                else:
+                    story.append(Paragraph("No missing values found.", styles["Normal"]))
+                story.append(Spacer(1, 20))
+
             if include_correlations:
                 story.append(Paragraph("🔗 Correlation Analysis", styles["Heading2"]))
                 numeric_df = df.select_dtypes(include=[np.number])
@@ -298,8 +325,29 @@ if uploaded_file is not None:
                     except Exception as e:
                         story.append(Paragraph(f"Could not generate heatmap: {e}", styles["Normal"]))
                 story.append(Spacer(1, 20))
+            
+            if include_distributions:
+                story.append(Paragraph("📈 Distribution Analysis", styles["Heading2"]))
+                numeric_df = df.select_dtypes(include=[np.number])
+                if not numeric_df.empty:
+                    for col in numeric_df.columns[:3]: # Limit to first 3
+                        story.append(Paragraph(f"Distribution of '{col}'", styles["Heading3"]))
+                        plt.figure(figsize=(8, 4))
+                        sns.histplot(df[col].dropna(), kde=True)
+                        plt.title(f'Distribution of {col}', pad=15)
+                        plt.tight_layout()
+                        img_buffer = BytesIO()
+                        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+                        plt.close()
+                        img_buffer.seek(0)
+                        story.append(Image(img_buffer, width=6*inch, height=3*inch))
+                        story.append(Spacer(1, 20))
+                else:
+                    story.append(Paragraph("No numeric columns to plot.", styles["Normal"]))
+
             doc.build(story)
             return buffer.getvalue()
+
         if st.button("📥 Generate & Download PDF Report", type="primary"):
             with st.spinner("Brewing your PDF report... ☕"):
                 try:
@@ -307,7 +355,6 @@ if uploaded_file is not None:
                     st.download_button(label="✅ Click to Download PDF", data=pdf_bytes, file_name="DataViz_Pro_Report.pdf", mime="application/pdf")
                 except Exception as e:
                     st.error(f"❌ Failed to generate PDF: {e}")
-
 else:
     st.markdown("""
     <div style="text-align: center; padding: 60px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 15px; margin: 50px 0;">
